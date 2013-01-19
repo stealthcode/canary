@@ -1,0 +1,68 @@
+localhost:
+  CaptureVersion: false
+  URLs:
+    PublicPortal: http://localhost:8080
+    MemberPortal: http://localhost:8081
+    AdminPortal: http://localhost:8082
+  Database:
+    user_sql:
+      host: localhost
+      username: auto_test
+      password: password123
+    tracking_sql:
+      host: localhost
+      username: auto_test
+      password: password123
+    
+local_versioned:
+  URLs:
+    PublicPortal: http://localhost:8080
+    MemberPortal: http://localhost:8081
+    AdminPortal: http://localhost:8082
+  Database:
+    sql:
+      host: localhost
+      username: auto_test
+      password: password123
+    spl:
+      host: localhost
+      username: auto_test
+      password: password123
+    ots:
+      host: localhost
+      username: auto_test
+      password: password123
+  CaptureVersion: true
+  TrackedApplications:
+    - ['PublicPortal.dll', 'C:\dev\Portal\bin\PublicPortal.dll']
+    - ['AdminPortal.dll', 'C:\dev\Portal\bin\PublicPortal.dll']
+    - ['MemberPortal.dll', 'C:\dev\Portal\bin\MemberPortal.dll']
+    - ['Util.dll', 'C:\dev\Portal\bin\Util.dll']
+
+integration:
+  URLs:
+    PublicPortal: http://public.staging
+    MemberPortal: http://members.staging
+    AdminPortal: http://admin.staging
+  Database:
+    pf:
+      host: sql.staging
+      username: auto_test
+      password: password123
+    spl:
+      host: sql.staging
+      username: auto_test
+      password: password123
+    ots:
+      host: sql.staging
+      username: auto_test
+      password: password123
+  RemoteHost: integration.mydomain
+  RemoteCredential: automated_user
+  RemotePassword: Guest
+  CaptureVersion: true
+  TrackedApplications:
+    - ['PublicPortal.dll', 'C:\dev\Portal\bin\PublicPortal.dll']
+    - ['AdminPortal.dll', 'C:\dev\Portal\bin\PublicPortal.dll']
+    - ['MemberPortal.dll', 'C:\dev\Portal\bin\MemberPortal.dll']
+    - ['Util.dll', 'C:\dev\Portal\bin\Util.dll']

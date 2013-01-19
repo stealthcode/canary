@@ -1,0 +1,23 @@
+local:
+  TargetEnvironment: localhost
+  Browser: Selenium
+  MongoDbName: autotest
+  MongoDbHost: localhost
+  MongoDbPort: 27017
+  ScreenshotFolder: C:\temp
+
+atull:
+  TargetEnvironment: localhost
+  Browser: Poltergeist
+  MongoDbName: autotest
+  MongoDbHost: localhost
+  MongoDbPort: 27017
+  ScreenshotFolder: C:\temp
+
+CI-SERVER:
+  TargetEnvironment: integration
+  Browser: Poltergeist
+  MongoDbName: autotest
+  MongoDbHost: localhost
+  MongoDbPort: 27017
+  ScreenshotFolder: C:\temp
