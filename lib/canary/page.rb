@@ -154,13 +154,12 @@ module Canary
       end
 
       def exists?(opts = {})
-        exists = false
         @locators.each {|locator|
           locator.each {|lookup_method, identifier|
-            exists ||= Capybara.page.has_selector?(lookup_method, identifier, opts)
+            return true if Capybara.page.has_selector?(lookup_method, identifier, opts)
           }
         }
-        exists
+        false
       end
 
       protected
