@@ -1,4 +1,4 @@
-require 'rspec'
+require 'rspec/core/formatters/base_formatter'
 require 'uri'
 require 'net/http'
 require 'socket'
@@ -7,7 +7,7 @@ require_relative 'exec'
 require_relative 'script'
 
 module Canary::RSpec
-  class StoryManager < ::RSpec::Core::Formatters::BaseFormatter
+  class StoryManager < ::RSpec::Core::Reporter
     def start(example_count)
       Canary.initialize
     end
