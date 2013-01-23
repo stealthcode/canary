@@ -7,7 +7,7 @@ require_relative 'exec'
 require_relative 'script'
 
 module Canary::RSpec
-  class StoryManager < ::RSpec::Core::Reporter
+  class StoryManager < ::RSpec::Core::Formatters::BaseFormatter
     def start(example_count)
       Canary.initialize
     end
