@@ -12,7 +12,7 @@ module Canary
     attr_accessor :setup_story, :testing_phase, :active_page, :factory_class, :config_path, :poltergeist_options,
                   :phantomjs_headers
 
-    def initialize
+    def initialize(&setup)
       @test_suite = []
       @testing_phase = :not_started
       @active_page = Canary::Page::AbstractPage
@@ -20,7 +20,8 @@ module Canary
       @categories_array = []
       @last_category_id = 0
       @config_file_name = 'config.yaml'
-      configure if File.exists?(File.join((@config_path || Dir.pwd), @config_file_name))
+      setup.call(self)
+      configure
     end
 
     def new_story

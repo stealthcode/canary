@@ -8,10 +8,6 @@ require_relative 'script'
 
 module Canary::RSpec
   class StoryManager < ::RSpec::Core::Formatters::BaseFormatter
-    def start(example_count)
-      Canary.initialize
-    end
-
     def example_group_started(eg)
       group_story = Canary::new_story
       category = eg.metadata[:description]
