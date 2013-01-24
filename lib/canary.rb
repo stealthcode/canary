@@ -7,117 +7,29 @@ require 'rspec'
 require 'json'
 
 module Canary
-  class << self
-    attr_reader :test_suite, :data_connections, :config, :categories, :categories_array
-    attr_accessor :setup_story, :testing_phase, :active_page, :factory_class, :config_path, :poltergeist_options,
-                  :phantomjs_headers
+  class AggregateLogger
+    class StoryLogger
+      def initialize
 
-    def initialize(&setup)
-      @test_suite = []
-      @testing_phase = :not_started
-      @active_page = Canary::Page::AbstractPage
-      @categories = {}
-      @categories_array = []
-      @last_category_id = 0
-      @config_file_name = 'config.yaml'
-      setup.call(self)
-      configure
-    end
-
-    def new_story
-      Story.new(@factory_class.new)
-    end
-
-    def configure
-      @config = {
-          'TargetEnvironment' => 'localhost',
-          'Browser' => 'Poltergeist',
-          'MongoDbName' => 'autotest',
-          'MongoDbHost' => 'localhost',
-          'MongoDbPort' => '27017',
-          'ImageContentType' => 'image/png',
-          'ImageExt' => 'png'
-      }
-      config_path = @config_path || Dir.pwd
-
-      begin
-        config_file_name = File.expand_path(File.join(config_path, @config_file_name))
-        file = File.open(config_file_name)
-        yaml = YAML::load(file)
-      ensure
-        file.close unless file.nil?
       end
 
-      override_config = yaml[ENV['env'].to_s]
-      override_config = yaml[ENV['COMPUTERNAME'].to_s] if override_config.nil?
-      override_config = yaml[ENV['USERNAME'].to_s] if override_config.nil?
-      override_config = yaml['local'] if override_config.nil?
-      @config.merge!(override_config)
-
-      targets_file_name = File.expand_path(File.join(config_path, 'targets.yaml'))
-      file = File.open(targets_file_name)
-      target_yaml = YAML::load(file)
-      @config.merge! target_yaml[@config['TargetEnvironment']]
-
-      @data_connections = {}
-      @config['Database'].each { |db, values|
-        @data_connections[db.to_sym] = Data::SQLDataConnection.new(values['username'], values['password'], values['host'])
-      }
-      setup_dependencies
-    end
-
-    def setup_dependencies
-      if @config['Browser'].downcase.include? 'poltergeist'
-        Capybara.configure do |config|
-          config.default_driver = :poltergeist
-        end
-
-        Capybara.register_driver :poltergeist do |app|
-          Capybara::Poltergeist::Driver.new(app, poltergeist_options)
-        end
-        Capybara.page.driver.headers = phantomjs_headers
-      else
-        Capybara.configure do |config|
-          config.default_driver = :selenium
+      def puts(msg)
+        if Canary.debug_mode
+          Canary.active_test.story.task_history.last.actions.last.log << {:description => "PhantomJS: #{msg}", :features => []} rescue nil
         end
       end
     end
 
-    def add_category(example)
-      tmp = list_of_nested_groups(example)
-      iter = @categories
-      tmp.reverse_each{ |category|
-        unless iter.has_key?(category)
-          @last_category_id += 1
-          iter[category] = {"id" => @last_category_id}
-          @categories_array << category
-        end
-        iter = iter[category]
-      }
-      iter["id"]
+    def initialize
+      @loggers = [StoryLogger.new]
     end
 
-    def list_of_nested_groups(example)
-      tmp = []
-      group = example.metadata[:example_group]
-      until group.nil?
-        tmp.push group[:description]
-        group = group[:example_group]
-      end
-      tmp
+    def puts(msg)
+      @loggers.each{|l|l.puts(msg)}
     end
 
-    def active_test
-      if @testing_phase == :setup
-        @setup_story
-      else
-        @test_suite.last
-      end
-    end
-
-    def temp_file_path
-      default = File.expand_path(File.join(Dir.pwd, 'tmp'))
-      return Canary.config['ScreenshotFolder'] || ENV['AUTOTEST_SAVE_PATH'] || default
+    def add(logger)
+      @loggers << logger
     end
   end
 
@@ -204,6 +116,129 @@ module Canary
     def initialize(story, category, file_path, line_number, nest_depth)
       super(story, category, 'Setup', file_path, line_number)
       @nest_depth = nest_depth
+    end
+  end
+
+  class << self
+    attr_reader :test_suite, :data_connections, :config, :categories, :categories_array
+    attr_accessor :setup_story, :testing_phase, :active_page, :factory_class, :config_path,:phantomjs_headers,
+                  :debug_mode
+
+    def initialize(&setup)
+      @test_suite = []
+      @testing_phase = :not_started
+      @active_page = Canary::Page::AbstractPage
+      @categories = {}
+      @categories_array = []
+      @last_category_id = 0
+      @config_file_name = 'config.yaml'
+      @poltergeist_logger = AggregateLogger.new()
+      @poltergeist_options = {:logger => @poltergeist_logger}
+      @debug_mode = false
+      setup.call(self)
+      configure
+    end
+
+    def poltergeist_options=(hash)
+      @poltergeist_options = hash
+      @poltergeist_logger.add(hash[:logger]) if hash.has_key?(:logger)
+      @poltergeist_options[:logger] = @poltergeist_logger
+    end
+
+    def new_story
+      Story.new(@factory_class.new)
+    end
+
+    def configure
+      @config = {
+          'TargetEnvironment' => 'localhost',
+          'Browser' => 'Poltergeist',
+          'MongoDbName' => 'autotest',
+          'MongoDbHost' => 'localhost',
+          'MongoDbPort' => '27017',
+          'ImageContentType' => 'image/png',
+          'ImageExt' => 'png'
+      }
+      config_path = @config_path || Dir.pwd
+
+      begin
+        config_file_name = File.expand_path(File.join(config_path, @config_file_name))
+        file = File.open(config_file_name)
+        yaml = YAML::load(file)
+      ensure
+        file.close unless file.nil?
+      end
+
+      override_config = yaml[ENV['env'].to_s]
+      override_config = yaml[ENV['COMPUTERNAME'].to_s] if override_config.nil?
+      override_config = yaml[ENV['USERNAME'].to_s] if override_config.nil?
+      override_config = yaml['local'] if override_config.nil?
+      @config.merge!(override_config)
+
+      targets_file_name = File.expand_path(File.join(config_path, 'targets.yaml'))
+      file = File.open(targets_file_name)
+      target_yaml = YAML::load(file)
+      @config.merge! target_yaml[@config['TargetEnvironment']]
+
+      @data_connections = {}
+      @config['Database'].each { |db, values|
+        @data_connections[db.to_sym] = Data::SQLDataConnection.new(values['username'], values['password'], values['host'])
+      }
+      setup_dependencies
+    end
+
+    def setup_dependencies
+      if @config['Browser'].downcase.include? 'poltergeist'
+        Capybara.configure do |config|
+          config.default_driver = :poltergeist
+        end
+
+        Capybara.register_driver :poltergeist do |app|
+          Capybara::Poltergeist::Driver.new(app, @poltergeist_options)
+        end
+        Capybara.page.driver.headers = phantomjs_headers
+      else
+        Capybara.configure do |config|
+          config.default_driver = :selenium
+        end
+      end
+    end
+
+    def add_category(example)
+      tmp = list_of_nested_groups(example)
+      iter = @categories
+      tmp.reverse_each{ |category|
+        unless iter.has_key?(category)
+          @last_category_id += 1
+          iter[category] = {"id" => @last_category_id}
+          @categories_array << category
+        end
+        iter = iter[category]
+      }
+      iter["id"]
+    end
+
+    def list_of_nested_groups(example)
+      tmp = []
+      group = example.metadata[:example_group]
+      until group.nil?
+        tmp.push group[:description]
+        group = group[:example_group]
+      end
+      tmp
+    end
+
+    def active_test
+      if @testing_phase == :setup
+        @setup_story
+      else
+        @test_suite.last
+      end
+    end
+
+    def temp_file_path
+      default = File.expand_path(File.join(Dir.pwd, 'tmp'))
+      return Canary.config['ScreenshotFolder'] || ENV['AUTOTEST_SAVE_PATH'] || default
     end
   end
 end
