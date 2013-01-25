@@ -61,7 +61,7 @@ module Canary
 
     def make_valid_file_name(ext)
       name = "#{@category}_#{@description}"
-      return "#{name.gsub(/\s*['":\/]+\s*/, '_').gsub(/\s/, '-')}.#{ext}"
+      return "#{name.gsub(/\s*['":\/\?]+\s*/, '_').gsub(/\s/, '-')}.#{ext}"
     end
 
     def stringify(arg)
