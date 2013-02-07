@@ -20,7 +20,6 @@ module MemberPortal
   module OnPage
     def on_page?
       log("Checking if on the #{self.class} page.")
-      wait_for_ajax(30)
       log("Current URL: #{page.current_host}#{page.current_path}")
       page.current_path.upcase.include? @path.upcase && page.current_host.upcase == @host.upcase
     end

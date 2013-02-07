@@ -43,12 +43,6 @@ module Canary
         end
       end
 
-      def wait_for_ajax(timeout = Capybara.default_wait_time)
-        page.wait_until(timeout) do
-          page.evaluate_script 'window.jQuery && window.jQuery.active == 0'
-        end
-      end
-
       def open
         log("Navigating to page '#{self.class}'")
         go_to_url(url)
