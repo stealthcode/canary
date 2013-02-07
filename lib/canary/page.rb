@@ -147,27 +147,59 @@ module Canary
         element[ind]
       end
 
+
       def exists?(opts = {})
-        @locators.each {|locator|
-          locator.each {|lookup_method, identifier|
-            return true if Capybara.page.has_selector?(lookup_method, identifier, opts)
-          }
+        for_any do |lookup_method, identifier|
+          Capybara.page.has_selector?(lookup_method, identifier, opts)
+        end
+      end
+
+      def not_visible?
+        msg = "Checking if #@name is not visible."
+        begin
+          results = for_any do |lookup_method, identifier|
+            Capybara.page.has_no_selector?(lookup_method, identifier, :visible => true)
+          end
+          msg = "#@name is #{results ? "not " : ""} visible."
+          results
+        ensure
+          log msg
+        end
+      end
+      alias :hidden? :not_visible?
+
+      protected
+      def for_any
+        all_locators.each{ |method, selector|
+          begin
+            return true if yield(method, selector) rescue false
+          end
         }
         false
       end
 
-      protected
+      def all_locators
+        results = []
+        @locators.each { |locator|
+          locator.each{|lookup_method, selectors|
+            selectors = [selectors] unless selectors.is_a? Hash
+            selectors.each {|selector|
+              results << [lookup_method, selector]
+            }
+          }
+        }
+        results
+      end
+
       def element(*opts)
         last_exception = nil
-        @locators.each {|locator|
-          locator.each {|lookup_method, identifier|
-            begin
-              return lookup(lookup_method, identifier, opts)
-            rescue Capybara::ElementNotFound => e
-              last_exception = e
-              next
-            end
-          }
+        all_locators.each { |lookup_method, identifier|
+          begin
+            return lookup(lookup_method, identifier, opts)
+          rescue Capybara::ElementNotFound => e
+            last_exception = e
+            next
+          end
         }
         raise last_exception
       end
@@ -182,10 +214,10 @@ module Canary
         end
 
         msg = ""
-        step = "Locating element(s) for #{@name}"
+        step = "Locating element(s) for #@name"
         begin
           search_result = element(locator_options)
-          msg = "#{@name}##{method}(#{method_args.join(', ')})"
+          msg = "#@name##{method}(#{method_args.join(', ')})"
           step = "Running"
           call_result = search_result.send(method, *method_args, &block)
           msg = "#{msg} returned #{call_result.inspect}"
