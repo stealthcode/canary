@@ -206,6 +206,7 @@ module Canary::RSpec
             {
                 'passed_count' => @passed_count,
                 'failed_count' => @failed_count,
+                'ignored_count' => 0,
                 'in_progress' => false,
                 'was_cancelled' => was_cancelled,
                 'end_date' => Time.now
