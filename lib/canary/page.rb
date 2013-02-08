@@ -59,6 +59,13 @@ module Canary
         false
       end
 
+      def set_timeout(time)
+        prev_timeout = Capybara.default_wait_time
+        Capybara.default_wait_time time
+        yield
+        Capybara.default_wait_time = prev_timeout
+      end
+
       def contains(key, selector)
         page.send("has_#{key}?", selector)
       end
