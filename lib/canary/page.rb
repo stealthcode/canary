@@ -55,8 +55,9 @@ module Canary
       end
 
       def on_page?
-        log 'Executing the default on_page?'
-        false
+        log("Checking if on the #{self.class} page.")
+        log("Current URL: #{page.current_host}#{page.current_path}")
+        page.current_path.upcase.include? @path.upcase
       end
 
       def set_timeout(time)
@@ -95,9 +96,25 @@ module Canary
       end
 
       def element(element_name, opts={})
-        @page_elements[element_name]
+        @page_elements[element_name] || begin
+          MissingElement.new("#{self.class}#element[:#{element_name}]")
+        end
       end
       alias :elements :element
+
+      class UnknownElementException < Exception
+      end
+
+      class MissingElement
+        def initialize(name)
+          @name = name
+        end
+
+        def method_missing(method, *args, &block)
+          log "Could not find '#@name' for ##{method}(#{args})."
+          raise UnknownElementException, "Unable to find element '#@name'."
+        end
+      end
 
       def all(*arg)
         if [:css, :xpath].include? arg[0]
@@ -157,8 +174,15 @@ module Canary
 
 
       def exists?(opts = {})
-        for_any do |lookup_method, identifier|
-          Capybara.page.has_selector?(lookup_method, identifier, opts)
+        msg = "Checking if #@name exists on page"
+        begin
+          result = for_any do |lookup_method, identifier|
+            Capybara.page.has_selector?(lookup_method, identifier, opts)
+          end
+          msg = "#@name #{result ? "exists" : "does not exist"} on the page."
+          result
+        ensure
+          log msg
         end
       end
 
@@ -229,7 +253,7 @@ module Canary
           step = "Running"
           call_result = search_result.send(method, *method_args, &block)
           msg = "#{msg} returned #{call_result.inspect}"
-          step = "ran successfully"
+          step = "ran successfully."
           call_result
         ensure
           log("#{msg} #{step}")
