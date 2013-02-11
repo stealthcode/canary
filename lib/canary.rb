@@ -34,7 +34,7 @@ module Canary
   end
 
   class StoryWithState
-    attr_accessor :passed, :message, :setup_passed, :exception, :run_time
+    attr_accessor :passed, :message, :setup_passed, :exception, :run_time, :in_progress
     attr_reader :story, :screenshot_path, :description, :category, :file_path, :line_number, :start_date
 
     def initialize(story, category, description, file_path, line_number)
@@ -79,6 +79,7 @@ module Canary
           'category'        => @category,
           'description'     => @description,
           'passed'          => @passed,
+          'in_progress'     => in_progress,
           'file_name'       => @file_path,
           'line_number'     => @line_number,
           'story_context'   => @story.story_context.to_a.map{|x|x.to_s},

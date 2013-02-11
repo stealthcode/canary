@@ -33,6 +33,7 @@ module Canary::RSpec
     def add_new_story(category, description, file, line)
       active_story = Canary::new_story
       new_test = Canary::StoryWithState.new(active_story, category, description, file, line)
+      new_test.in_progress = true
       Canary.test_suite << new_test
       Canary.testing_phase = :story
       new_test.setup_passed = Canary.setup_story.passed?
@@ -42,14 +43,16 @@ module Canary::RSpec
       super(example)
       Canary.active_test.message = example.metadata[:execution_result][:status]
       Canary.active_test.run_time = example.metadata[:execution_result][:run_time]
+      Canary.active_test.in_progress = false
     end
 
     def example_failed(example)
       super(example)
+      Canary.active_test.passed = false
       Canary.active_test.message = example.metadata[:execution_result][:exception].message
       Canary.active_test.exception = example.metadata[:execution_result][:exception]
       Canary.active_test.run_time = example.metadata[:execution_result][:run_time]
-      Canary.active_test.passed = false
+      Canary.active_test.in_progress = false
     end
 
     private
@@ -146,6 +149,9 @@ module Canary::RSpec
           'script_host' => Socket.gethostname,
           'target_env' => Canary.config['TargetEnvironment'],
           'story_count' => @test_count,
+          'passed_count' => 0,
+          'failed_count' => 0,
+          'ignored_count' => 0,
           'in_progress' => true,
       }
       if Canary.config['CaptureVersion']
@@ -220,24 +226,29 @@ module Canary::RSpec
       raise 'Cannot use the key "test_id" as an example group description' if Canary.categories.has_key?('test_id')
       @category_id = @category_coll.save(Canary.categories.merge({'test_id' => @test_id}))
       Canary.categories.merge!('_id' => @category_id)
+      persist(Canary.active_test)
     end
 
     def example_passed(example)
       super(example)
       @passed_count += 1
       persist(Canary.active_test)
+      @test_coll.update({'_id' => @test_id}, {'$inc' => {'passed_count' => 1}})
+      @story_id = nil
     end
 
     def example_failed(example)
       super(example)
       @failed_count += 1
-      @test_coll.save(@test_record.merge!({}))
       persist(Canary.active_test)
+      @test_coll.update({'_id' => @test_id}, {'$inc' => {'failed_count' => 1}})
+      @story_id = nil
     end
 
     def persist(story)
       story_data = {}
       story_data['test_id'] = @test_id
+      story_data['_id'] = @story_id if @story_id
 
       unless story.passed
         opts = {
@@ -256,8 +267,7 @@ module Canary::RSpec
         end
 
       end
-      @story_coll.insert story_data.merge!(story.to_hash)
-      #puts story_data
+      @story_id = @story_coll.save story_data.merge!(story.to_hash)
     end
   end
 end
