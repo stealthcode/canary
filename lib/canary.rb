@@ -183,7 +183,8 @@ module Canary
 
       @data_connections = {}
       @config['Database'].each { |db, values|
-        @data_connections[db.to_sym] = Data::SQLDataConnection.new(values['username'], values['password'], values['host'])
+        connection = Data::ADOSQLDataConnection.connection(values['username'], values['password'], values['host'])
+        @data_connections[db.to_sym] = Data::ADOSQLDataConnection.new(connection)
       }
       setup_dependencies
     end
