@@ -56,10 +56,8 @@ module Canary
     end
 
     class ADOSQLDataConnection
-
       def initialize(connection_string)
-        @client = WIN32OLE.new('ADODB.Connection')
-        @client.Open(connection_string)
+        @connection_string = connection_string
       end
 
       def self.connection(un, pw, host)
@@ -73,36 +71,31 @@ module Canary
       end
 
       def query(sql)
+        client = WIN32OLE.new('ADODB.Connection')
+        client.Open(@connection_string)
         recordset = WIN32OLE.new('ADODB.Recordset')
         begin
-          recordset.Open(sql, @client)
-        rescue
-          close and raise
-        end
-        fields = []
-        recordset.Fields.each do |field|
-          fields << field.Name
-        end
-        begin
-          # Move to the first record/row, if any exist
-          recordset.MoveFirst
-          # Grab all records
-          data = recordset.GetRows
-        rescue
-          data = []
-        end
+          recordset.Open(sql, client)
+          fields = []
+          recordset.Fields.each do |field|
+            fields << field.Name
+          end
+          begin
+            # Move to the first record/row, if any exist
+            recordset.MoveFirst
+            # Grab all records
+            data = recordset.GetRows
+          rescue
+            data = []
+          end
 
-        results = []
-        data.transpose.map{ |datarow|
-          Hash[fields.zip(datarow)]
-        }
+          data.transpose.map{ |datarow|
+            Hash[fields.zip(datarow)]
+          }
+        ensure
+          client.Close
+        end
       end
-
-      def close
-        @client.Close
-      end
-
     end
-
   end
 end
