@@ -65,7 +65,7 @@ module Canary
         Capybara.default_wait_time = time
         result = yield
         Capybara.default_wait_time = prev_timeout
-        result 
+        result
       end
 
       def contains(key, selector)
@@ -214,7 +214,7 @@ module Canary
         results = []
         @locators.each { |locator|
           locator.each{|lookup_method, selectors|
-            selectors = [selectors] unless selectors.is_a? Hash
+            selectors = [selectors] unless selectors.is_a? Array
             selectors.each {|selector|
               results << [lookup_method, selector]
             }
