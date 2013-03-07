@@ -7,7 +7,6 @@ module Canary
       def execute(hash)
         hash.each{ |key, value|
           token = "$$$#{key.to_s.upcase}$$$"
-          raise "Token not found ''#{token}'" unless @sql.include?(token)
           @sql.gsub!(token, value.to_s)
         }
         @connection.query(@sql)
