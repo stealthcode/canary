@@ -59,7 +59,7 @@ module Canary
         @connection_string = connection_string
       end
 
-      def self.connection(un, pw, host)
+      def self.credential_connection(un, pw, host)
         connection_string =  "Provider=SQLOLEDB.1;"
         connection_string << "Persist Security Info=False;"
         connection_string << "User ID=#{un};"
@@ -68,6 +68,16 @@ module Canary
         connection_string << "Data Source=#{host};"
         connection_string << "Network Library=dbmssocn"
       end
+
+      def self.connection(host)
+        connection_string =  "Provider=SQLOLEDB.1;"
+        connection_string << "Persist Security Info=False;"
+        connection_string << "Integrated Security=SSPI;"
+        connection_string << "Initial Catalog=master;"
+        connection_string << "Data Source=#{host};"
+        connection_string << "Network Library=dbmssocn"
+      end
+
 
       def query(sql)
         client = WIN32OLE.new('ADODB.Connection')
