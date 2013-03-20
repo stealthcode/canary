@@ -37,7 +37,7 @@ module Canary
     private
     def active_task
       if @current_task.nil?
-        @current_task = Canary.active_test.story.task_history.last.actions.last
+        @current_task = Canary.active_story.story.task_history.last.actions.last
       else
         @current_task
       end

@@ -1,7 +1,7 @@
 module Canary
   module Script
     def story
-      Canary.active_test.story
+      Canary.active_story.story
     end
 
     def page(c = [])

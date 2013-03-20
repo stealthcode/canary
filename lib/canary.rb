@@ -1,132 +1,23 @@
 require_relative 'canary/task'
 require_relative 'canary/story'
 require_relative 'canary/script'
+require_relative 'canary/domain'
 require_relative 'canary/rspec'
+require_relative 'canary/mongo'
+require_relative 'canary/story_logger'
+
 require 'capybara/poltergeist'
 require 'rspec'
 require 'json'
 
 module Canary
-  class AggregateLogger
-    class StoryLogger
-      def initialize
-
-      end
-
-      def puts(msg)
-        if Canary.debug_mode
-          Canary.active_test.story.task_history.last.actions.last.log << {:description => "PhantomJS: #{msg}", :features => []} rescue nil
-        end
-      end
-    end
-
-    def initialize
-      @loggers = [StoryLogger.new]
-    end
-
-    def puts(msg)
-      @loggers.each{|l|l.puts(msg)}
-    end
-
-    def add(logger)
-      @loggers << logger
-    end
-  end
-
-  class StoryWithState
-    attr_accessor :passed, :message, :setup_passed, :exception, :run_time, :in_progress
-    attr_reader :story, :screenshot_path, :description, :category, :file_path, :line_number, :start_date
-
-    def initialize(story, category, description, file_path, line_number)
-      @story = story
-      @category = category
-      @description = description
-      @screenshot_path = File.join(Canary.temp_file_path, make_valid_file_name(Canary.config['ImageExt']))
-      @file_path = file_path
-      @line_number = line_number
-      @passed = true
-      @setup_passed = true
-      @message = ''
-      @start_date = Time.now
-      @run_time = 0
-    end
-
-    def passed?
-      @passed
-    end
-
-    def failed?
-      !@passed
-    end
-
-    def make_valid_file_name(ext)
-      name = "#{@category}_#{@description}"
-      return "#{name.gsub(/\s*['":\/\?]+\s*/, '_').gsub(/\s/, '-')}.#{ext}"
-    end
-
-    def stringify(arg)
-      if arg.respond_to?(:to_a)
-        arg.to_a
-      else
-        [arg.inspect]
-      end
-    end
-
-    def to_hash
-      hash = {
-          'start_date'      => @start_date,
-          'run_time'        => @run_time,
-          'category'        => @category,
-          'description'     => @description,
-          'passed'          => @passed,
-          'in_progress'     => in_progress,
-          'file_name'       => @file_path,
-          'line_number'     => @line_number,
-          'story_context'   => @story.story_context.to_a.map{|x|x.to_s},
-          'tasks'           => @story.task_history.map { |task|
-            {
-                'task_context'  => task.context.to_a.map{|x|x.to_s},
-                'actions'       => task.actions.map { |action|
-                  {
-                      'method_name'   => action.metadata[:method],
-                      'arguments'     => stringify(action.metadata[:args]),
-                      'wrapped_class' => action.wrapped_class.to_s,
-                      'result'        => action.result.to_s,
-                      'log'           => action.log
-                  }
-                }
-            }
-          }
-      }
-      unless @exception.nil?
-        hash.merge!(
-            {
-                'exception'       => @exception.message,
-                'backtrace'       => @exception.backtrace
-            })
-      end
-      hash
-    end
-
-    def to_json(*a)
-      self.to_hash.to_json(*a)
-    end
-  end
-
-  class SetupStoryWithState < StoryWithState
-    def initialize(story, category, file_path, line_number, nest_depth)
-      super(story, category, 'Setup', file_path, line_number)
-      @nest_depth = nest_depth
-    end
-  end
-
   class << self
-    attr_reader :test_suite, :data_connections, :config, :categories, :categories_array
-    attr_accessor :setup_story, :testing_phase, :active_page, :factory_class, :config_path,:phantomjs_headers,
+    attr_reader :story_list, :data_connections, :config, :categories, :categories_array, :active_suite
+    attr_accessor :setup_story, :testing_phase, :active_page, :factory_class, :config_path, :phantomjs_headers,
                   :debug_mode
 
     def initialize(&setup)
-      @test_suite = []
+      @story_list = []
       @testing_phase = :not_started
       @active_page = Canary::Page::AbstractPage
       @categories = {}
@@ -136,8 +27,15 @@ module Canary
       @poltergeist_logger = AggregateLogger.new()
       @poltergeist_options = {:logger => @poltergeist_logger}
       @debug_mode = false
-      setup.call(self)
+      setup.call(self) unless setup.nil?
       configure
+      @service = MongoDBService.new(Canary.config['MongoDbHost'], Canary.config['MongoDbPort'])
+      @active_suite = TestSuite.new(@service)
+      ::RSpec.configure do |config|
+        config.include(Canary::Script)
+        config.add_formatter Canary::RSpec::StoryManager
+        config.add_formatter Canary::RSpec::ConsoleReporter
+      end
     end
 
     def poltergeist_options=(hash)
@@ -146,8 +44,16 @@ module Canary
       @poltergeist_options[:logger] = @poltergeist_logger
     end
 
-    def new_story
-      Story.new(@factory_class.new)
+    def active_story
+      if @testing_phase == :setup
+        @setup_story
+      else
+        @story_list.last
+      end
+    end
+
+    def new_suite
+      @active_suite = TestSuite.new(@service)
     end
 
     def configure
@@ -235,12 +141,24 @@ module Canary
       tmp
     end
 
-    def active_test
-      if @testing_phase == :setup
-        @setup_story
-      else
-        @test_suite.last
-      end
+    def find_system_versions
+      all_versions = {}
+      Canary.config['TrackedApplications'].each{|r|
+        app = {'app_name' => r[0], 'path' => r[1]}
+        app.merge!({'remote_host' => r[2], 'username' => r[3], 'password' => r[4]}) if r.length > 2
+
+        cmd = "(Get-Command #{app['path']}).FileVersionInfo.FileVersion"
+        x = Canary::Exec::InlinePowershellCommand.new(cmd, app['remote_host'] || :default)
+        result = ''
+        begin
+          result = x.execute_job
+          result = result[/((\d\.)+\d)/, 0] || 'Failed'
+        rescue => e
+          result = e.message
+        end
+        all_versions.merge! app['app_name'] => {'version' => result}
+      }
+      all_versions
     end
 
     def temp_file_path
@@ -248,12 +166,4 @@ module Canary
       return Canary.config['ScreenshotFolder'] || ENV['AUTOTEST_SAVE_PATH'] || default
     end
   end
-end
-
-RSpec.configure do |config|
-  config.include(Canary::Script)
-  config.add_formatter Canary::RSpec::StoryManager
-  config.add_formatter Canary::RSpec::ConsoleReporter
-  config.add_formatter Canary::RSpec::ScreenshotFormatter
-  config.add_formatter Canary::RSpec::MongoPersistence
 end
