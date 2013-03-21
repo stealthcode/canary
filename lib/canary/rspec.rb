@@ -24,14 +24,11 @@ module Canary::RSpec
       # Catches the process when it is ended prematurely and calls #stop
       # This does not work running on windows when using the RubyMine process runner
       # see http://youtrack.jetbrains.com/issue/RUBY-11492
-      at_exit { stop }
+      at_exit { @test_suite.cancel }
     end
 
     def stop
-      if @finished.nil?
-        @finished = true
-        @test_suite.complete
-      end
+      @test_suite.complete
     end
 
     def example_group_started(eg)

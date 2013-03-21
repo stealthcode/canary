@@ -15,14 +15,18 @@ module Canary
     def start(count)
       @story_count = count
       @in_progress = true
-      @service.save_test(self)
+      @service.save_test(to_hash)
     end
 
-    def complete
+    def complete(was_cancelled=false)
       @in_progress = false
-      @was_cancelled = (@story_count != @passed_count + @failed_count)
+      @was_cancelled = was_cancelled
       @end_date = Time.now
-      @service.save_test(self)
+      @service.save_test(to_hash)
+    end
+
+    def cancel
+      complete(false)
     end
 
     def start_group(category, file, line, nest_depth)

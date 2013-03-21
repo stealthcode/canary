@@ -50,8 +50,8 @@ module Canary
     end
 
     def save_test(test)
-      @test_id = @test_coll.save(test.to_hash)
-      unless test.versions.nil?
+      @test_id = @test_coll.save(test)
+      if Canary.config['CaptureVersion']
         @release_coll.update(
           {'application' => @test_suite.versions},
           {'$set' => {'dirty' => true}, '$push' =>{'tests' => @test_id}},

@@ -12,7 +12,7 @@ require 'json'
 
 module Canary
   class << self
-    attr_reader :story_list, :data_connections, :config, :categories, :categories_array, :active_suite
+    attr_reader :story_list, :data_connections, :config, :categories, :active_suite
     attr_accessor :setup_story, :testing_phase, :active_page, :factory_class, :config_path, :phantomjs_headers,
                   :debug_mode
 
