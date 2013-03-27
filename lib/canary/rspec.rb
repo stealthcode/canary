@@ -12,23 +12,15 @@ module Canary::RSpec
     attr_accessor :test_suite
     def initialize(output)
       super(output)
-      @test_suite = Canary.active_suite
     end
 
     def start(count)
-      @test_suite.start(count)
-      if Canary.config['CaptureVersion']
-        @test_suite.versions = Canary.find_system_versions
-      end
-
-      # Catches the process when it is ended prematurely and calls #stop
-      # This does not work running on windows when using the RubyMine process runner
-      # see http://youtrack.jetbrains.com/issue/RUBY-11492
-      at_exit { @test_suite.cancel }
+      @test_plan = Canary.test_suite.start_new_test
+      @test_plan.start(count)
     end
 
     def stop
-      @test_suite.complete
+      @test_plan.complete
     end
 
     def example_group_started(eg)
@@ -36,14 +28,14 @@ module Canary::RSpec
       file = eg.metadata[:file_path]
       line = eg.metadata[:line_number]
       nest_depth = nested_level(eg.metadata[:example_group], 0)
-      @test_suite.start_group(category, file, line, nest_depth)
+      @test_plan.start_group(category, file, line, nest_depth)
     end
 
     def example_started(example)
       super
       category_id = Canary.add_category(example)
 
-      @test_suite.add_new_story(
+      @test_plan.add_new_story(
           category_id,
           example.metadata[:description],
           example.metadata[:file_path],
@@ -55,7 +47,7 @@ module Canary::RSpec
       super(example)
       message = example.metadata[:execution_result][:status]
       run_time = example.metadata[:execution_result][:run_time]
-      @test_suite.example_passed(message, run_time)
+      @test_plan.example_passed(message, run_time)
     end
 
     def example_failed(example)
@@ -63,7 +55,7 @@ module Canary::RSpec
       message = example.metadata[:execution_result][:exception].message
       run_time = example.metadata[:execution_result][:run_time]
       exception = example.metadata[:execution_result][:exception]
-      @test_suite.example_failed(message, exception, run_time)
+      @test_plan.example_failed(message, exception, run_time)
     end
 
     private
@@ -102,7 +94,7 @@ module Canary::RSpec
     end
 
     def stop
-      failing_tests = Canary.story_list.map { |test| test if test.failed? }.select { |t| !t.nil?}
+      failing_tests = @test_plan.story_list.map { |test| test if test.failed? }.select { |t| !t.nil?}
       puts "Failures: #{failing_tests.count}" if failing_tests.count > 0
       puts "Failing Tests" if failing_tests.count > 0
       print_test(failing_tests)

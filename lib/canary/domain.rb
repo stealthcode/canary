@@ -1,12 +1,61 @@
 module Canary
-  class TestSuite 
-    attr_accessor :versions, :story_count
+  class TestSuite
+    attr_reader :active_test_plan
+    attr_accessor :versions
+    def initialize(service, name = 'Ad hoc test plan', target_env = Canary.config['TargetEnvironment'])
+      @service = service
+      @name = name
+      @in_progress = true
+      @script_host = Socket.gethostname
+      @target_env = target_env
+      @start_date = Time.new
+      @service.save_test_suite(to_hash)
+    end
+
+    def cancel 
+      @active_test_plan.cancel
+    end
+
+    def end(was_cancelled=false)
+      @in_progress = false
+      @was_cancelled = was_cancelled
+      @end_date = Time.now
+      @service.save_test_suite(to_hash)
+    end
+
+    def cancel
+      complete(false)
+    end
+
+    def start_new_test
+      @active_test_plan = TestPlan.new(@service)
+    end
+
+    def to_hash
+      hash = {
+        'name' => @name,
+        'start_date' => @start_date,
+        'end_date' => @end_date,
+        'in_progress' => @in_progress,
+        'script_host' => @script_host,
+        'target_env' => @target_env,
+        ''
+      }
+      hash.merge! ({
+              'target_versions' => @versions
+            }) unless @versions.nil?
+      hash
+    end
+  end
+
+  class TestPlan
+    attr_accessor :story_count, :test_id
+    attr_reader :story_list
     def initialize(service)
       @service = service
+      @story_list = []
       @versions = nil
       @start_date = Time.now
-      @script_host = Socket.gethostname
-      @target_env = Canary.config['TargetEnvironment']
       @passed_count = 0
       @failed_count = 0
       @ignored_count = 0
@@ -15,14 +64,14 @@ module Canary
     def start(count)
       @story_count = count
       @in_progress = true
-      @service.save_test(to_hash)
+      @service.save_test_suite(to_hash)
     end
 
     def complete(was_cancelled=false)
       @in_progress = false
       @was_cancelled = was_cancelled
       @end_date = Time.now
-      @service.save_test(to_hash)
+      @service.save_test_suite(to_hash)
     end
 
     def cancel
@@ -40,7 +89,7 @@ module Canary
       active_story = Story.new(Canary.factory_class.new)
       new_story = Canary::StoryWithState.new(active_story, category, description, file, line)
       new_story.in_progress = true
-      Canary.story_list << new_story
+      @story_list << new_story
       Canary.testing_phase = :story
       new_story.setup_passed = Canary.setup_story.passed?
       @service.add_category
@@ -69,8 +118,6 @@ module Canary
     def to_hash
       hash = {
         'start_date' => @start_date,
-        'script_host' => @script_host,
-        'target_env' => @target_env,
         'story_count' => @story_count,
         'passed_count' => @passed_count,
         'failed_count' => @failed_count,
@@ -80,9 +127,6 @@ module Canary
       hash.merge!({
               'test_name' => Canary.test_name 
             }) unless Canary.test_name.nil?
-      hash.merge! ({
-              'target_versions' => @versions
-            }) unless @versions.nil?
       hash.merge! ({
               'was_cancelled' => @was_cancelled,
               'end_date' => @end_date

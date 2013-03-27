@@ -12,12 +12,11 @@ require 'json'
 
 module Canary
   class << self
-    attr_reader :story_list, :data_connections, :config, :categories, :active_suite
+    attr_reader :story_list, :data_connections, :config, :categories, :test_suite
     attr_accessor :setup_story, :testing_phase, :active_page, :factory_class, :config_path, :phantomjs_headers,
                   :debug_mode
 
     def initialize(&setup)
-      @story_list = []
       @testing_phase = :not_started
       @active_page = Canary::Page::AbstractPage
       @categories = {}
@@ -29,13 +28,34 @@ module Canary
       @debug_mode = false
       setup.call(self) unless setup.nil?
       configure
-      @service = MongoDBService.new(Canary.config['MongoDbHost'], Canary.config['MongoDbPort'])
-      @active_suite = TestSuite.new(@service)
-      ::RSpec.configure do |config|
-        config.include(Canary::Script)
-        config.add_formatter Canary::RSpec::StoryManager
-        config.add_formatter Canary::RSpec::ConsoleReporter
+    end
+
+    def rspec_config
+      @rspec_config ||= do 
+        cfg = RSpec::Core::Configuration.new
+        cfg.include(Canary::Script)
+        cfg.add_formatter Canary::RSpec::StoryManager
+        cfg.add_formatter Canary::RSpec::ConsoleReporter unless Canary.config['Silent']
       end
+    end
+
+    def run_test_suite
+      ::RSpec::Core::Runner.trap_interrupt
+      ::RSpec::Core::CommandLine.new(args, rspec_config).run(err, out)
+    end
+
+    def test_suite
+      @test_suite ||= TestSuite.new(@service)
+    end
+
+    def start_suite
+      @service = MongoDBService.new(Canary.config['MongoDbHost'], Canary.config['MongoDbPort'])
+      # Catches the process when it is ended prematurely and calls #cancel
+      # This does not work running on windows when using the RubyMine process runner
+      # see http://youtrack.jetbrains.com/issue/RUBY-11492
+      test_suite.start
+      at_exit { test_suite.cancel }
+      test_suite.versions = @versions ||= find_system_versions if Canary.config['CaptureVersion']
     end
 
     def poltergeist_options=(hash)
@@ -50,10 +70,6 @@ module Canary
       else
         @story_list.last
       end
-    end
-
-    def new_suite
-      @active_suite = TestSuite.new(@service)
     end
 
     def configure
