@@ -35,6 +35,8 @@ module Canary
       end
 
       def append_args(command, cmd_line_args)
+        return command
+        # commandline args are not working as a result of passing a full context to story
         cmd_line_args = [cmd_line_args] unless cmd_line_args.is_a? Array
         stringy_args = cmd_line_args.map{|e|
           e.class <= DateTime ?
@@ -45,7 +47,7 @@ module Canary
       end
 
       def run_ps (command)
-        if @is_local
+        if @is_local || @remote_host.nil?
           ps_command = "icm -ScriptBlock {#{command}}"
         else
           ps_command = "icm #{@remote_host[:remote_host]} -ScriptBlock {#{command}} -Credential (New-Object System.Management.Automation.PsCredential(('#{@remote_host[:username]}'), (ConvertTo-SecureString '#{@remote_host[:password]}' -AsPlainText -force)))"
