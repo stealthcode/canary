@@ -5,6 +5,7 @@ require_relative 'canary/rspec'
 require 'capybara/poltergeist'
 require 'rspec'
 require 'json'
+require 'yaml'
 
 module Canary
   class AggregateLogger
